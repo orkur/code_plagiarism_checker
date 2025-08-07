@@ -10,6 +10,13 @@ using Graph = std::unordered_map<Node, std::vector<Node>>;
 struct TreeNode {
     std::string label;
     std::vector<TreeNode*> children;
+
+    [[nodiscard]] bool empty() const {
+        return children.empty() && label.empty();
+    }
+
+    TreeNode() = default;
+
 };
 
 std::string create_canonical_form(const Node& root, const Graph& graph);

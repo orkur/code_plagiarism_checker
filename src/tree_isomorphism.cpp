@@ -51,46 +51,125 @@ void delete_tree(TreeNode* node) {
     delete node;
 }
 
-void postorder(TreeNode* node,
-               vector<TreeNode*>& post_list,
-               unordered_map<TreeNode*, int>& index_map) {
-    for (TreeNode* child : node->children)
-        postorder(child, post_list, index_map);
-    index_map[node] = static_cast<int>(post_list.size());
-    post_list.push_back(node);
+void define_local_roots(const unordered_map<TreeNode*, TreeNode*>& most_left, TreeNode* node, TreeNode* father_label, vector<TreeNode*>& local_roots) {
+    for (const auto& i : node->children)
+        define_local_roots(most_left, i, node, local_roots);
+
+    if (father_label->empty() || most_left.at(node) != most_left.at(father_label))
+        local_roots.push_back(node);
 }
 
+void define_most_left_leaf(unordered_map<TreeNode*, TreeNode*>& most_left, TreeNode* node) {
+    if (node->children.empty()) {
+        most_left[node] = node;
+        return;
+    }
+    define_most_left_leaf(most_left, node->children[0]);
+    most_left[node] = most_left[node->children[0]];
+    for (size_t i = 1; i < node->children.size(); i++)
+        define_most_left_leaf(most_left, node->children[i]);
+}
 
-// TODO add rename_cost based on type of node (eg VarDecl, Stmt, ...)
-// TODO doesn't work properly
-int calculate_tree_edit_distance(TreeNode* t1, TreeNode* t2) {
-    vector<TreeNode*> post1, post2;
-    unordered_map<TreeNode*, int> idx1, idx2;
-    postorder(t1, post1, idx1);
-    postorder(t2, post2, idx2);
+void rename_to_number_tree(vector<TreeNode*>& v, TreeNode* node) {
+    for (TreeNode* child : node->children)
+        rename_to_number_tree(v, child);
+    v.push_back(node);
+}
 
-    const size_t n = post1.size();
-    const size_t m = post2.size();
+void tree_dist_helper(
+    const unordered_map<TreeNode*, int>& idx1, const unordered_map<TreeNode*, int>& idx2,
+    const unordered_map<TreeNode*, int>& lmd1, const unordered_map<TreeNode*, int>& lmd2,
+    const vector<TreeNode*>& post1, const vector<TreeNode*>& post2,
+    vector<vector<int>>& treedist,
+    TreeNode* tn1, TreeNode* tn2) {
 
-    vector dp(n + 1, vector<int>(m + 1));
-    constexpr int rename_cost = 0, insert_cost = 1, delete_cost = 1;
-    dp[0][0] = 0;
-    for (int i = 1; i <= n; i++) dp[i][0] = dp[i-1][0] + delete_cost;
-    for (int j = 1; j <= m; j++) dp[0][j] = dp[0][j-1] + insert_cost;
 
-    for (int i = 1; i <= n; i++) {
-        for (int j = 1; j <= m; j++) {
+    constexpr int insert_cost = 1, delete_cost = 1;
+    auto rename_cost = [](TreeNode* a, TreeNode* b) {
+        return 0; // not implemented further logic
+    };
+    int n1 = idx1.at(tn1);
+    int m1 = idx2.at(tn2);
+    int i0 = lmd1.at(post1[n1]);
+    int j0 = lmd2.at(post2[m1]);
+    int rows = n1 - i0 + 2;
+    int cols = m1 - j0 + 2;
 
-            dp[i][j] = min({
-                dp[i - 1][j] + delete_cost,
-                dp[i][j - 1] + insert_cost,
-                dp[i - 1][j - 1] + rename_cost
-            });
+    vector fd(rows, vector<int>(cols));
+
+    fd[0][0] = 0;
+    for (int i = 1; i < rows; i++) fd[i][0] = fd[i-1][0] + delete_cost;
+    for (int j = 1; j < cols; j++) fd[0][j] = fd[0][j-1] + insert_cost;
+
+    for (int i = 1; i < rows; i++) {
+        for (int j = 1; j < cols; j++) {
+            TreeNode* node1 = post1[i0 + i - 1];
+            TreeNode* node2 = post2[j0 + j - 1];
+            int l1 = lmd1.at(node1);
+            int l2 = lmd2.at(node2);
+            int treex = idx1.at(node1);
+            int treey = idx2.at(node2);
+
+            if (l1 == i0 && l2 == j0) {
+                fd[i][j] = min({
+                    fd[i - 1][j] + delete_cost,
+                    fd[i][j - 1] + insert_cost,
+                    fd[i - 1][j - 1] + rename_cost(node1, node2)
+                });
+                treedist[treex][treey] = fd[i][j];
+            } else {
+                int x = l1 - i0 + 1;
+                int y = l2 - j0 + 1;
+                fd[i][j] = min({
+                    fd[i - 1][j] + delete_cost,
+                    fd[i][j - 1] + insert_cost,
+                    fd[x - 1][y - 1] + treedist[treex][treey]
+                });
+            }
         }
     }
-    return dp[n][m];
 }
 
+// Zhang-Shasha algorithm
+int calculate_tree_edit_distance(TreeNode* t1, TreeNode* t2) {
+    unordered_map<TreeNode*, TreeNode*> most_left1, most_left2;
+    define_most_left_leaf(most_left1, t1);
+    define_most_left_leaf(most_left2, t2);
+
+    vector<TreeNode*> post1, post2, roots1, roots2;
+    rename_to_number_tree(post1, t1);
+    rename_to_number_tree(post2, t2);
+
+    auto emptyNode = TreeNode();
+    define_local_roots(most_left1, t1, &emptyNode, roots1);
+    define_local_roots(most_left2, t2, &emptyNode, roots2);
+
+    unordered_map<TreeNode*, int> idx1, idx2;
+    unordered_map<TreeNode*, int> lmd1, lmd2;
+
+    for (int i = 0; i < post1.size(); ++i) {
+        TreeNode* node = post1[i];
+        idx1[node] = i;
+    }
+    for (TreeNode* node : post1)
+        lmd1[node] = idx1[most_left1[node]];
+
+    for (int i = 0; i < post2.size(); ++i) {
+        TreeNode* node = post2[i];
+        idx2[node] = i;
+    }
+    for (TreeNode* node : post2)
+        lmd2[node] = idx2[most_left2[node]];
+
+    int n = post1.size(), m = post2.size();
+    vector treedist(n, vector(m, 0));
+
+    for (TreeNode * i : roots1)
+        for (TreeNode * j : roots2)
+            tree_dist_helper(idx1, idx2, lmd1, lmd2, post1, post2, treedist, i, j);
+
+    return treedist[n-1][m-1];
+}
 
 
 Graph read_graph_from_json(const string& filename) {
@@ -114,9 +193,8 @@ unordered_map<string, double> similarity_between_graphs(const Node& a, const Nod
     similarity["Levenshtein distance"] = 1.0 - calculate_levenshtein_distance(first_canonical, second_canonical)/static_cast<double>(max(first_canonical.size(), second_canonical.size()));
     TreeNode* tree1 = build_tree(a, graph1), *tree2 = build_tree(b, graph2);
     vector<TreeNode*> post1, post2;
-    unordered_map<TreeNode*, int> idx1, idx2;
-    postorder(tree1, post1, idx1);
-    postorder(tree2, post2, idx2);
+    rename_to_number_tree(post1, tree1);
+    rename_to_number_tree(post2, tree2);
 
     const int ted = calculate_tree_edit_distance(tree1, tree2);
     const unsigned int max_size = max(post1.size(), post2.size());
