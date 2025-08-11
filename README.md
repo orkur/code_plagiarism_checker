@@ -29,3 +29,9 @@ python -m venv .venv
 python -m pip install -U pip
 pip install -r requirements.txt
 ```
+
+## Run
+From the project root run:
+```bash
+python3 check_codes.py
+```
