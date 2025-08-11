@@ -1,5 +1,6 @@
 import sys
-from os import walk
+from multiprocessing import Pool
+from os import walk, cpu_count
 import shutil
 import os
 import subprocess
@@ -7,12 +8,22 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+def run_parser(filename, json_dir, include_markers, dir):
+    outfile_path = f"{json_dir}/{filename.split('.')[0]}.json"
+    with open(outfile_path, "w") as outfile:
+        subprocess.run(["clang++", "-Xclang", "-ast-dump=json", "-Iinclude", "-fsyntax-only", f"{dir}/{filename}"], stdout=outfile)
+        subprocess.run(["python3", "./ast-parser/ast_parser.py", outfile_path, outfile_path, include_markers ])
+
 def plot_heatmap(data, title, cmap="coolwarm"):
     plt.figure(figsize=(8, 6))
     sns.heatmap(data.astype(float), annot=True, fmt=".2f", cmap=cmap, vmin=0, vmax=1, linewidths=0.5, linecolor='gray')
     plt.title(title)
     plt.tight_layout()
     plt.show()
+
+def put_into_table(tbl, i, j, v):
+    tbl.loc[i, j] = v
+    tbl.loc[j, i] = v
 
 if __name__ == '__main__':
     codes_dir = input("Provide codes directory (default: ./codes): ")
@@ -28,11 +39,8 @@ if __name__ == '__main__':
     jsonify = input("Do you need to generate new json files to check codes? (Y/n): ").lower() != "n"
     if jsonify:
         include_markers = input("Check codes based on code markers? (y/N): ").lower()
-        for filename in filenames:
-            outfile_path = f"{json_dir}/{filename.split('.')[0]}.json"
-            with open(outfile_path, "w") as outfile:
-                subprocess.run(["clang++", "-Xclang", "-ast-dump=json", "-fsyntax-only", f"{dir}/{filename}"], stdout=outfile)
-                subprocess.run(["python3", "./ast-parser/ast_parser.py", outfile_path, outfile_path, include_markers ])
+        with Pool(processes=cpu_count()) as pool:
+            pool.starmap(run_parser, [(filename, json_dir, include_markers, dir) for filename in filenames])
     TED_table = pd.DataFrame()
     LEV_table = pd.DataFrame()
     STRICT_table = pd.DataFrame()
@@ -58,15 +66,9 @@ if __name__ == '__main__':
                     print("There's a problem with files", a_file, b_file)
                     sys.exit(1)
                 scores[key] = float(val)
-            TED_table.loc[a_file, b_file] = scores.get("TED", None)
-            TED_table.loc[b_file, a_file] = scores.get("TED", None)
-
-            LEV_table.loc[a_file, b_file] = scores.get("Levenshtein distance", None)
-            LEV_table.loc[b_file, a_file] = scores.get("Levenshtein distance", None)
-
-            STRICT_table.loc[a_file, b_file] = scores.get("strict similarity", None)
-            STRICT_table.loc[b_file, a_file] = scores.get("strict similarity", None)
-
+            put_into_table(TED_table,   a_file, b_file, scores.get("TED"))
+            put_into_table(LEV_table,   a_file, b_file, scores.get("Levenshtein distance"))
+            put_into_table(STRICT_table,a_file, b_file, scores.get("strict similarity"))
 
     print("\n=== TED Table ===")
     print(TED_table.round(2))
