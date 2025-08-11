@@ -25,8 +25,7 @@ if __name__ == '__main__':
         print("Couldn't create directory {}".format(json_dir))
         sys.exit(1)
     filenames = next(walk(dir), (None, None, []))[2]
-    jsonify = input("Do you need to generate new json files to check codes? y/N ")
-    jsonify = True if jsonify == 'y' else 0
+    jsonify = input("Do you need to generate new json files to check codes? (Y/n): ").lower() != "n"
     if jsonify:
         include_markers = input("Check codes based on code markers? (y/N): ").lower()
         for filename in filenames:
