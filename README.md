@@ -4,6 +4,7 @@
 
 ### System prerequisites
 - `clang++` — used for creating ast trees
+- `g++` - used for compiling plagiarism logic
 - `make`
 - Python **3.12.0** (with `pip`)
 
@@ -26,6 +27,7 @@ this produces both `./tree_isomorphism` and `include/nlohmann/json.hpp`.
 set up virtual environment, then install dependencies:
 ```bash
 python -m venv .venv
+source .venv/bin/activate
 python -m pip install -U pip
 pip install -r requirements.txt
 ```
