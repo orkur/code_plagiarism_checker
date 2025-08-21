@@ -197,7 +197,7 @@ unordered_map<string, double> similarity_between_graphs(const Node& a, const Nod
     rename_to_number_tree(post2, tree2);
 
     const int ted = calculate_tree_edit_distance(tree1, tree2);
-    const unsigned int max_size = max(post1.size(), post2.size());
+    const unsigned int max_size = post1.size() + post2.size();
     similarity["TED"] = 1.0 - static_cast<double>(ted) / max_size;
     delete_tree(tree1);
     delete_tree(tree2);
