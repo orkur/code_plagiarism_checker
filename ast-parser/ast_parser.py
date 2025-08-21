@@ -13,6 +13,7 @@ class Node:
     qual_type: str | None
     children: list['Node']
     is_used: bool | None
+    in_marker: bool | None
 
     def __init__(self):
         self.id = None
@@ -112,14 +113,17 @@ def extract_on_same_level_markers(input_data, cut_unused_variables=False):
         if is_end_marker(name) and len(potential_marker_node.get("inner", [])) == 2:
             marker_labels.remove(extract_marker_label(name))
             save_node = False if len(marker_labels) == 0 else True
+            node["saved"] = True
 
         if save_node:
             children.append(Node.create_node(node, cut_unused_variables))
+            node["saved"] = True
 
         if is_start_marker(name) and len(potential_marker_node.get("inner", [])) == 2:
             save_node = True
             marker = extract_marker_label(name)
             marker_labels.append(marker)
+            node["saved"] = True
     return children
 
 def extract_everywhere(input_data, cut_unused_variables=False):
@@ -130,8 +134,8 @@ def extract_everywhere(input_data, cut_unused_variables=False):
             result = extract_on_same_level_markers(node, cut_unused_variables)
             if result:
                 all_marked.extend(result)
-            else:
-                for child in node["inner"]:
+            for child in node["inner"]:
+                if not child.get("saved", False):
                     recurse(child)
 
     recurse(input_data)
