@@ -1,8 +1,7 @@
 import json
 import re
-import sys
 from typing import (Dict, List)
-
+import argparse
 
 
 class Node:
@@ -143,14 +142,37 @@ def extract_everywhere(input_data, cut_unused_variables=False):
 
 if __name__ == '__main__':
 
-    if len(sys.argv) < 3:
-        print("Usage: python3 parse_ast.py <input_ast.json> <output_graph.json> [markers y/N] [cut-unused y/N]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        prog="ast_parser.py",
+        description="Convert Clang AST (JSON) into a lightweight adjacency map for similarity checks.",
+    )
+    parser.add_argument("input",  help="path to input AST dump (JSON) produced by Clang")
+    parser.add_argument("output", help="path to output graph (JSON) with adjacency map")
+    parser.add_argument(
+        "-m", "--markers",
+        action="store_true",
+        help="extract only code fragments delimited by markers "
+             "(__marker_<label>_start__/__marker_<label>_end__)"
+    )
+    parser.add_argument(
+        "--cut-unused",
+        action="store_true",
+        help="drop unused declarations (VarDecl/FunctionDecl with isUsed=false)"
+    )
+    parser.add_argument(
+        "--emit",
+        choices=["lite", "full"],
+        default="lite",
+        help="output format: 'lite' (adjacency map only) or 'full' (full metadata)"
+    )
 
-    input_path = sys.argv[1]
-    output_path = sys.argv[2]
-    using_markers = len(sys.argv) >= 4 and sys.argv[3].lower() == "y"
-    cut_unused = len(sys.argv) >= 5 and sys.argv[4].lower() == "y"
+    args = parser.parse_args()
+
+    input_path = args.input
+    output_path = args.output
+    using_markers = args.markers
+    cut_unused = args.cut_unused
+    emit = args.emit
 
     with open(input_path) as f:
         data = json.load(f)
@@ -160,8 +182,13 @@ if __name__ == '__main__':
     else:
         main_node = extract_everywhere(data, cut_unused_variables=cut_unused)
 
-        main_node.id = "main"
-        graph = to_graph_dict(main_node)
-        with open(output_path, "w") as out:
-            json.dump(graph, out, indent=2)
+    main_node.id = "main"
+    graph = to_graph_dict(main_node)
+    with open(output_path, "w") as out:
         print(f"[INFO] Wrote graph to {output_path}")
+        json.dump(graph, out, indent=2)
+    if emit == "full":
+        with open(output_path.replace(".json", ".labels.json"), "w") as out:
+            print(f"[INFO] Wrote full graph to {output_path.replace(".json", ".labels.json")}")
+            json.dump(main_node.to_dict(), out, indent=2)
+
