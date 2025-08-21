@@ -1,6 +1,7 @@
 import json
 import re
 import sys
+from typing import (Dict, List)
 
 
 
@@ -12,7 +13,7 @@ class Node:
     operator: str | None
     qual_type: str | None
     children: list['Node']
-    isUsed: bool | None
+    is_used: bool | None
 
     def __init__(self):
         self.id = None
@@ -59,11 +60,11 @@ class Node:
             "children": [child.to_dict() for child in self.children]
         }
 
-def to_graph_dict(node: 'Node', graph=None) -> 'Node':
+def to_graph_dict(node: 'Node', graph: Dict[str, List[str]] | None = None) -> Dict[str, List[str]]:
     if graph is None:
         graph = {}
 
-    graph[node.id] = [child.id for child in node.children]
+    graph[node.id] = sorted(child.id for child in node.children)
     for child in node.children:
         to_graph_dict(child, graph)
 
@@ -82,11 +83,11 @@ def is_user_made(node):
 
     return begin != {} and end != {} and 'spellingLoc' not in begin and 'spellingLoc' not in end
 
-def extract_main(input_data):
+def extract_main(input_data, cut_unused_variables=False):
     children = []
     for node in input_data["inner"]:
         if is_user_made(node):
-            children.append(Node.create_node(node, cut_unused_variables=False))
+            children.append(Node.create_node(node, cut_unused_variables))
     node = Node()
     node.children = children
     return node
@@ -143,22 +144,21 @@ def extract_everywhere(input_data, cut_unused_variables=False):
 if __name__ == '__main__':
 
     if len(sys.argv) < 3:
-        print("Usage: python3 parse_ast.py <input_ast.json> <output_graph.json> <using markers (y/N)>")
+        print("Usage: python3 parse_ast.py <input_ast.json> <output_graph.json> [markers y/N] [cut-unused y/N]")
         sys.exit(1)
 
     input_path = sys.argv[1]
     output_path = sys.argv[2]
-    using_markers = False
-    if len(sys.argv) == 4 and sys.argv[3].lower() == "y":
-            using_markers = True
+    using_markers = len(sys.argv) >= 4 and sys.argv[3].lower() == "y"
+    cut_unused = len(sys.argv) >= 5 and sys.argv[4].lower() == "y"
 
     with open(input_path) as f:
         data = json.load(f)
         print(f"[INFO] Parsing main from {input_path}")
-        if not using_markers:
-            main_node = extract_main(data)
-        else:
-            main_node = extract_everywhere(data)
+    if not using_markers:
+        main_node = extract_main(data, cut_unused_variables=cut_unused)
+    else:
+        main_node = extract_everywhere(data, cut_unused_variables=cut_unused)
 
         main_node.id = "main"
         graph = to_graph_dict(main_node)
