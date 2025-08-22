@@ -12,7 +12,10 @@ def run_parser(filename, json_dir, include_markers, dir):
     outfile_path = f"{json_dir}/{filename.split('.')[0]}.json"
     with open(outfile_path, "w") as outfile:
         subprocess.run(["clang++", "-Xclang", "-ast-dump=json", "-Iinclude", "-fsyntax-only", f"{dir}/{filename}"], stdout=outfile)
-        subprocess.run(["python3", "./ast-parser/ast_parser.py", outfile_path, outfile_path, include_markers ])
+        args = ["python3", "./ast-parser/ast_parser.py", outfile_path, outfile_path]
+        if include_markers != "":
+            args.append(include_markers)
+        subprocess.run(args)
 
 def plot_heatmap(data, title, cmap="coolwarm"):
     plt.figure(figsize=(8, 6))
@@ -38,7 +41,7 @@ if __name__ == '__main__':
     filenames = next(walk(dir), (None, None, []))[2]
     jsonify = input("Do you need to generate new json files to check codes? (Y/n): ").lower() != "n"
     if jsonify:
-        include_markers = input("Check codes based on code markers? (y/N): ").lower()
+        include_markers = "-m" if input("Check codes based on code markers? (y/N): ").lower() == "y" else ""
         with Pool(processes=cpu_count()) as pool:
             pool.starmap(run_parser, [(filename, json_dir, include_markers, dir) for filename in filenames])
     TED_table = pd.DataFrame()
