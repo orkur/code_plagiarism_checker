@@ -64,7 +64,7 @@ def to_graph_dict(node: 'Node', graph: Dict[str, List[str]] | None = None) -> Di
     if graph is None:
         graph = {}
 
-    graph[node.id] = sorted(child.id for child in node.children)
+    graph[node.id] = [child.id for child in node.children]
     for child in node.children:
         to_graph_dict(child, graph)
 

@@ -17,7 +17,7 @@ $(NLOHMANN_JSON):
 	curl -L https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp -o $(NLOHMANN_JSON)
 
 create-tree $(FILE):
-	clang++ -Xclang -ast-dump=json -fsyntax-only -Iinclude $(FILE) > $(FILE:.cpp=.json)
+	clang++ -Xclang -ast-dump=json -fsyntax-only $(CXXFLAGS) $(FILE) > $(FILE:.cpp=.json)
 
 
 clean:
