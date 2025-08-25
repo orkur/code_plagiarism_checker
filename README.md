@@ -35,13 +35,14 @@ pip install -r requirements.txt
 ## Run
 From the project root run:
 ```bash
-python3 check_codes.py
+python3 check_codes.py [SRC] [--json-dir DIR] [--reuse-json] [--clean-json] [--markers]
 ```
-Script is interactive, containing of 4 questions:
-1. **Provide codes directory (default: ./codes):** - folder containing the .cpp files to parse. JSON trees will be written to `<directory>/generated`;
-2. **Delete isomorphism trees after creating tables? (y/N):** - if yes, the folder `<directory>/generated` is removed after the tables are produced;
-3. **Do you need to generate new json files to check codes? (Y/n):** - if yes, the script regenerates AST JSONs using clang++ and your parser; otherwise it reuses existing files in `generated/`;
-4. **Check codes based on code markers? (y/N):** - if yes, **all** codes will be checked in specified fragments (more in `Student markers` chapter);
+Arguments
+1. `SRC` (optional, default: `./codes`) — directory with C++ sources to analyze.
+2. `--json-dir DIR` (optional, default: `generated` under SRC) — where AST .json files are stored. If DIR is relative, it is resolved inside SRC; absolute paths are respected.
+3. `--reuse-json` — reuse existing .json files; skip regeneration if the file already exists.
+4. `--clean-json` — remove the JSON directory after the run completes.
+5. `--markers` — enable fragment analysis based on in-source markers (see Student markers section).
 ---
 ## Student markers
 [todo]

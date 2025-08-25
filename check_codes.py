@@ -1,3 +1,4 @@
+import argparse
 import sys
 from multiprocessing import Pool
 from os import walk, cpu_count
@@ -13,8 +14,8 @@ def run_parser(filename, json_dir, include_markers, dir):
     with open(outfile_path, "w") as outfile:
         subprocess.run(["clang++", "-Xclang", "-ast-dump=json", "-Iinclude", "-fsyntax-only", f"{dir}/{filename}"], stdout=outfile)
         args = ["python3", "./ast-parser/ast_parser.py", outfile_path, outfile_path]
-        if include_markers != "":
-            args.append(include_markers)
+        if include_markers:
+            args.append("-m")
         subprocess.run(args)
 
 def plot_heatmap(data, title, cmap="coolwarm"):
@@ -28,20 +29,68 @@ def put_into_table(tbl, i, j, v):
     tbl.loc[i, j] = v
     tbl.loc[j, i] = v
 
+
+def run_logic(i, j, a_path, b_path):
+    res = subprocess.run(["./tree_isomorphism", a_path, b_path],
+                         capture_output=True, text=True)
+    if res.returncode != 0:
+        return {"ERROR": float("nan")}
+    scores = {}
+    for line in res.stdout.strip().splitlines():
+        try:
+            k, v = line.split(": ")
+            scores[k] = float(v)
+        except ValueError:
+            scores["ERROR"] = float("nan")
+            break
+    return i, j, scores
+
+def parse_args():
+    p = argparse.ArgumentParser(
+        description="Compare C++ sources by AST-derived similarity metrics.",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    p.add_argument(
+        "src", nargs="?", default="./codes",
+        help="Directory with C++ source files (default: ./codes)",
+    )
+    p.add_argument("--json-dir", default="generated",
+                   help=("Directory for AST .json files. "
+                         "Default: 'generated' (inside SRC).")
+    )
+    p.add_argument(
+        "--clean-json", action="store_true",
+        help="Remove generated .json files at the end.",
+    )
+    p.add_argument(
+        "--reuse-json", action="store_true",
+        help="Reuse existing AST .json files; skip regeneration if present.",
+    )
+    p.add_argument(
+        "--markers", action="store_true",
+        help="Enable fragment analysis based on in-source markers.",
+    )
+    args = p.parse_args()
+
+    if not os.path.isdir(args.src):
+        p.error(f"'{args.src}' is not a directory")
+
+    args.json_dir = args.json_dir if os.path.isabs(args.json_dir) else os.path.join(args.src, args.json_dir)
+
+    os.makedirs(args.json_dir, exist_ok=True)
+
+    return args
+
+
 if __name__ == '__main__':
-    codes_dir = input("Provide codes directory (default: ./codes): ")
-    dir = codes_dir if codes_dir != "" else "./codes"
-    json_dir = os.path.join(dir, "generated")
-    delete_json_files = input("Delete isomorphism trees after creating tables? (y/N): ").lower() == "y"
-    try:
-        os.makedirs(json_dir, exist_ok=True)
-    except Exception:
-        print("Couldn't create directory {}".format(json_dir))
-        sys.exit(1)
+    args = parse_args()
+    dir = args.src
+    json_dir = args.json_dir
+    delete_json_files = args.clean_json
     filenames = next(walk(dir), (None, None, []))[2]
-    jsonify = input("Do you need to generate new json files to check codes? (Y/n): ").lower() != "n"
-    if jsonify:
-        include_markers = "-m" if input("Check codes based on code markers? (y/N): ").lower() == "y" else ""
+    reuse_json = args.reuse_json
+    if not reuse_json:
+        include_markers = args.markers
         with Pool(processes=cpu_count()) as pool:
             pool.starmap(run_parser, [(filename, json_dir, include_markers, dir) for filename in filenames])
     TED_table = pd.DataFrame()
