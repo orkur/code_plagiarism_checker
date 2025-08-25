@@ -35,7 +35,7 @@ pip install -r requirements.txt
 ## Run
 From the project root run:
 ```bash
-python3 check_codes.py [SRC] [--json-dir DIR] [--reuse-json] [--clean-json] [--markers]
+python3 check_codes.py [SRC] [--json-dir DIR] [--reuse-json] [--clean-json] [--markers] [--metrics]
 ```
 Arguments
 1. `SRC` (optional, default: `./codes`) — directory with C++ sources to analyze.
@@ -43,6 +43,7 @@ Arguments
 3. `--reuse-json` — reuse existing .json files; skip regeneration if the file already exists.
 4. `--clean-json` — remove the JSON directory after the run completes.
 5. `--markers` — enable fragment analysis based on in-source markers (see Student markers section).
+6. `--metrics` — Comma-separated list of metrics to compute (STRICT,LEV,TED). Default: STRICT,LEV,TED
 ---
 ## Student markers
 [todo]

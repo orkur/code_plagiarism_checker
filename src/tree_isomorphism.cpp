@@ -193,21 +193,30 @@ Graph read_graph_from_json(const string& filename) {
 
 }
 
-unordered_map<string, double> similarity_between_graphs(const Node& a, const Node& b, const Graph& graph1, const Graph& graph2) {
+unordered_map<string, double> similarity_between_graphs(const Node& a, const Node& b, const Graph& graph1, const Graph& graph2,
+        bool do_strict = true, bool do_levenshtein = true, bool do_ted = true) {
     unordered_map<string, double> similarity;
-    const string first_canonical = create_canonical_form(a, graph1);
-    const string second_canonical = create_canonical_form(b, graph2);
-    similarity["strict similarity"] = first_canonical == second_canonical;
-    similarity["Levenshtein distance"] = 1.0 - calculate_levenshtein_distance(first_canonical, second_canonical)/static_cast<double>(max(first_canonical.size(), second_canonical.size()));
-    TreeNode* tree1 = build_tree(a, graph1), *tree2 = build_tree(b, graph2);
-    vector<TreeNode*> post1, post2;
-    rename_to_number_tree(post1, tree1);
-    rename_to_number_tree(post2, tree2);
+    string first_canonical, second_canonical;
+    if (do_strict || do_levenshtein) {
+        first_canonical = create_canonical_form(a, graph1);
+        second_canonical = create_canonical_form(b, graph2);
+    }
+    if (do_strict)
+        similarity["strict similarity"] = first_canonical == second_canonical;
+    if (do_levenshtein)
+        similarity["Levenshtein distance"] = 1.0 - calculate_levenshtein_distance(first_canonical, second_canonical) /
+                                             static_cast<double>(max(first_canonical.size(), second_canonical.size()));
+    if (do_ted) {
+        TreeNode* tree1 = build_tree(a, graph1), *tree2 = build_tree(b, graph2);
+        vector<TreeNode*> post1, post2;
+        rename_to_number_tree(post1, tree1);
+        rename_to_number_tree(post2, tree2);
 
-    const int ted = calculate_tree_edit_distance(tree1, tree2);
-    const unsigned int max_size = post1.size() + post2.size();
-    similarity["TED"] = 1.0 - static_cast<double>(ted) / max_size;
-    delete_tree(tree1);
-    delete_tree(tree2);
+        const int ted = calculate_tree_edit_distance(tree1, tree2);
+        const unsigned int max_size = post1.size() + post2.size();
+        similarity["TED"] = 1.0 - static_cast<double>(ted) / max_size;
+        delete_tree(tree1);
+        delete_tree(tree2);
+    }
     return similarity;
 }

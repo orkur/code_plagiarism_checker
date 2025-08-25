@@ -1,8 +1,7 @@
 import argparse
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from itertools import combinations_with_replacement
-from multiprocessing import Pool
+from itertools import combinations_with_replacement, repeat
 from os import walk, cpu_count
 import shutil
 import os
@@ -51,7 +50,7 @@ def put_into_table(tbl, i, j, v):
 
 
 def run_logic(a_path, b_path):
-    res = subprocess.run(["./tree_isomorphism", a_path, b_path],
+    res = subprocess.run(["./tree_isomorphism", a_path, b_path, "--metrics", args.metrics],
                          capture_output=True, text=True)
     if res.returncode != 0:
         return {"ERROR": float("nan")}
@@ -70,25 +69,24 @@ def parse_args():
         description="Compare C++ sources by AST-derived similarity metrics.",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    p.add_argument(
-        "src", nargs="?", default="./codes",
-        help="Directory with C++ source files (default: ./codes)",
-    )
+    p.add_argument("src", nargs="?", default="./codes",
+                   help="Directory with C++ source files (default: ./codes)",)
     p.add_argument("--json-dir", default="generated",
                    help=("Directory for AST .json files. "
                          "Default: 'generated' (inside SRC).")
     )
-    p.add_argument(
-        "--clean-json", action="store_true",
-        help="Remove generated .json files at the end.",
+    p.add_argument("--clean-json", action="store_true",
+                   help="Remove generated .json files at the end.",
     )
-    p.add_argument(
-        "--reuse-json", action="store_true",
-        help="Reuse existing AST .json files; skip regeneration if present.",
+    p.add_argument("--reuse-json", action="store_true",
+                   help="Reuse existing AST .json files; skip regeneration if present.",
     )
-    p.add_argument(
-        "--markers", action="store_true",
-        help="Enable fragment analysis based on in-source markers.",
+    p.add_argument("--markers", action="store_true",
+                   help="Enable fragment analysis based on in-source markers.",
+    )
+    p.add_argument("--metrics", default="STRICT,LEV,TED",
+                   help="Comma-separated list of metrics to compute "
+                        "(STRICT,LEV,TED). Default: STRICT,LEV,TED"
     )
     args = p.parse_args()
 
@@ -111,8 +109,9 @@ if __name__ == '__main__':
     reuse_json = args.reuse_json
     if not reuse_json:
         include_markers = args.markers
-        with Pool(processes=cpu_count()) as pool:
-            pool.starmap(run_parser, [(filename, json_dir, include_markers, dir) for filename in filenames])
+        max_workers = min(cpu_count() or 4, len(filenames))
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            ex.map(run_parser, filenames, repeat(json_dir), repeat(include_markers), repeat(dir))
     TED_table = pd.DataFrame()
     LEV_table = pd.DataFrame()
     STRICT_table = pd.DataFrame()
@@ -149,22 +148,25 @@ if __name__ == '__main__':
             if strict is not None and not math.isnan(strict):
                 put_into_table(STRICT_table, a_file, b_file, strict)
 
-    TED_table = TED_table.sort_index().sort_index(axis=1)
-    LEV_table = LEV_table.sort_index().sort_index(axis=1)
-    STRICT_table = STRICT_table.sort_index().sort_index(axis=1)
-    print("\n=== TED Table ===")
-    print(TED_table.round(2))
 
-    print("\n=== Levenshtein Distance Table ===")
-    print(LEV_table.round(2))
+    if "TED" in args.metrics:
+        TED_table = TED_table.sort_index().sort_index(axis=1)
+        print("\n=== TED Table ===")
+        print(TED_table.round(2))
+        plot_heatmap(TED_table, "Tree Edit Distance (TED)")
 
-    print("\n=== Strict Similarity Table ===")
-    print(STRICT_table.astype(int))
+    if "LEV" in args.metrics:
+        LEV_table = LEV_table.sort_index().sort_index(axis=1)
+        print("\n=== Levenshtein Distance Table ===")
+        print(LEV_table.round(2))
+        plot_heatmap(LEV_table, "Levenshtein Distance")
 
+    if "STRICT" in args.metrics:
+        STRICT_table = STRICT_table.sort_index().sort_index(axis=1)
+        print("\n=== Strict Similarity Table ===")
+        print(STRICT_table.astype(int))
+        plot_heatmap(STRICT_table, "Strict Similarity")
 
-    plot_heatmap(TED_table, "Tree Edit Distance (TED)")
-    plot_heatmap(LEV_table, "Levenshtein Distance")
-    plot_heatmap(STRICT_table, "Strict Similarity")
     if delete_json_files:
         shutil.rmtree(json_dir)
 
