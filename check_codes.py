@@ -1,5 +1,7 @@
 import argparse
-import sys
+import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from itertools import combinations_with_replacement
 from multiprocessing import Pool
 from os import walk, cpu_count
 import shutil
@@ -8,6 +10,8 @@ import subprocess
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap, BoundaryNorm
+
 
 def run_parser(filename, json_dir, include_markers, dir):
     outfile_path = f"{json_dir}/{filename.split('.')[0]}.json"
@@ -18,9 +22,25 @@ def run_parser(filename, json_dir, include_markers, dir):
             args.append("-m")
         subprocess.run(args)
 
-def plot_heatmap(data, title, cmap="coolwarm"):
+def plot_heatmap(data, title, palette="coolwarm"):
+    bounds = [0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 1.0]
+
+    colors = sns.color_palette(palette, n_colors=len(bounds) - 1)
+    colors[-1] = "#cd1204"
+    cmap = ListedColormap(colors)
+    norm = BoundaryNorm(boundaries=bounds, ncolors=cmap.N, clip=True)
+
+    mask = data.isna()
+    annot_ok = not mask.values.any()
+
     plt.figure(figsize=(8, 6))
-    sns.heatmap(data.astype(float), annot=True, fmt=".2f", cmap=cmap, vmin=0, vmax=1, linewidths=0.5, linecolor='gray')
+    sns.heatmap(
+        data.astype(float), mask=mask,
+        cmap=cmap, norm=norm,
+        cbar_kws={"ticks": bounds, "spacing": "proportional"},
+        annot=annot_ok, fmt=".2f",
+        vmin=0, vmax=1, linewidths=0.5, linecolor="gray"
+    )
     plt.title(title)
     plt.tight_layout()
     plt.show()
@@ -30,7 +50,7 @@ def put_into_table(tbl, i, j, v):
     tbl.loc[j, i] = v
 
 
-def run_logic(i, j, a_path, b_path):
+def run_logic(a_path, b_path):
     res = subprocess.run(["./tree_isomorphism", a_path, b_path],
                          capture_output=True, text=True)
     if res.returncode != 0:
@@ -43,7 +63,7 @@ def run_logic(i, j, a_path, b_path):
         except ValueError:
             scores["ERROR"] = float("nan")
             break
-    return i, j, scores
+    return scores
 
 def parse_args():
     p = argparse.ArgumentParser(
@@ -97,31 +117,41 @@ if __name__ == '__main__':
     LEV_table = pd.DataFrame()
     STRICT_table = pd.DataFrame()
 
-    trees_to_check = next(walk(json_dir), (None, None, []))[2]
-    for i in range(len(trees_to_check)):
-        for j in range(i, len(trees_to_check)):
+    trees_to_check = sorted(f for f in next(walk(json_dir), (None, None, []))[2] if f.endswith(".json"))
+    pairs = []
+    for i, j in combinations_with_replacement(range(len(trees_to_check)), 2):
+        a_file, b_file = trees_to_check[i], trees_to_check[j]
+        a_path = os.path.join(json_dir, a_file)
+        b_path = os.path.join(json_dir, b_file)
+        pairs.append((i, j, a_path, b_path))
+
+    max_workers = min(cpu_count() or 4, len(pairs)) or 1
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        future2ij = {
+            ex.submit(run_logic, a, b): (i, j)
+            for (i, j, a, b) in pairs
+        }
+        for fut in as_completed(future2ij):
+            i, j = future2ij[fut]
+            scores = fut.result()
             a_file, b_file = trees_to_check[i], trees_to_check[j]
-            a_path = os.path.join(json_dir, a_file)
-            b_path = os.path.join(json_dir, b_file)
+            if "ERROR" in scores:
+                print(f"[WARNING]: files {a_file} and {b_file} weren't compared.")
 
-            result = subprocess.run(
-                ["./tree_isomorphism", a_path, b_path],
-                capture_output=True,
-                text=True
-            )
-            lines = result.stdout.strip().split("\n")
-            scores = {}
-            for line in lines:
-                try:
-                    key, val = line.split(": ")
-                except ValueError:
-                    print("There's a problem with files", a_file, b_file)
-                    sys.exit(1)
-                scores[key] = float(val)
-            put_into_table(TED_table,   a_file, b_file, scores.get("TED"))
-            put_into_table(LEV_table,   a_file, b_file, scores.get("Levenshtein distance"))
-            put_into_table(STRICT_table,a_file, b_file, scores.get("strict similarity"))
+            ted    = scores.get("TED")
+            lev    = scores.get("Levenshtein distance")
+            strict = scores.get("strict similarity")
 
+            if ted is not None and not math.isnan(ted):
+                put_into_table(TED_table, a_file, b_file, ted)
+            if lev is not None and not math.isnan(lev):
+                put_into_table(LEV_table, a_file, b_file, lev)
+            if strict is not None and not math.isnan(strict):
+                put_into_table(STRICT_table, a_file, b_file, strict)
+
+    TED_table = TED_table.sort_index().sort_index(axis=1)
+    LEV_table = LEV_table.sort_index().sort_index(axis=1)
+    STRICT_table = STRICT_table.sort_index().sort_index(axis=1)
     print("\n=== TED Table ===")
     print(TED_table.round(2))
 
