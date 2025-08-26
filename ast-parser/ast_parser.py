@@ -109,8 +109,10 @@ def extract_on_same_level_markers(input_data, cut_unused_variables=False):
 
     for node in input_data["inner"]:
         potential_marker_node = node.get("inner", [{}])[0]
-        name = potential_marker_node.get("name", '')
-        if is_end_marker(name) and len(potential_marker_node.get("inner", [])) == 2:
+        name = potential_marker_node.get("name")
+        if name is None:
+            name = node.get("name", "")
+        if is_end_marker(name):
             marker_labels.remove(extract_marker_label(name))
             save_node = False if len(marker_labels) == 0 else True
             node["saved"] = True
@@ -119,7 +121,7 @@ def extract_on_same_level_markers(input_data, cut_unused_variables=False):
             children.append(Node.create_node(node, cut_unused_variables))
             node["saved"] = True
 
-        if is_start_marker(name) and len(potential_marker_node.get("inner", [])) == 2:
+        if is_start_marker(name):
             save_node = True
             marker = extract_marker_label(name)
             marker_labels.append(marker)
