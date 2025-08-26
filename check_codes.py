@@ -1,7 +1,7 @@
 import argparse
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from itertools import combinations_with_replacement, repeat
+from itertools import repeat
 from os import walk, cpu_count
 import shutil
 import os
@@ -60,8 +60,7 @@ def run_logic(a_path, b_path):
             k, v = line.split(": ")
             scores[k] = float(v)
         except ValueError:
-            scores["ERROR"] = float("nan")
-            break
+            continue
     return scores
 
 def parse_args():
@@ -118,11 +117,17 @@ if __name__ == '__main__':
 
     trees_to_check = sorted(f for f in next(walk(json_dir), (None, None, []))[2] if f.endswith(".json"))
     pairs = []
-    for i, j in combinations_with_replacement(range(len(trees_to_check)), 2):
-        a_file, b_file = trees_to_check[i], trees_to_check[j]
+    n = len(trees_to_check)
+    for i in range(n):
+        a_file = trees_to_check[i]
         a_path = os.path.join(json_dir, a_file)
-        b_path = os.path.join(json_dir, b_file)
-        pairs.append((i, j, a_path, b_path))
+        put_into_table(TED_table,    a_file, a_file, 1)
+        put_into_table(LEV_table,    a_file, a_file, 1)
+        put_into_table(STRICT_table, a_file, a_file, 1)
+        for j in range(i + 1, n):
+            b_file = trees_to_check[j]
+            b_path = os.path.join(json_dir, b_file)
+            pairs.append((i, j, a_path, b_path))
 
     max_workers = min(cpu_count() or 4, len(pairs)) or 1
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
