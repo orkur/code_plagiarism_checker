@@ -12,13 +12,15 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, BoundaryNorm
 
 
-def run_parser(filename, json_dir, include_markers, dir):
+def run_parser(filename, json_dir, include_markers, optimise, dir):
     outfile_path = f"{json_dir}/{filename.split('.')[0]}.json"
     with open(outfile_path, "w") as outfile:
         subprocess.run(["clang++", "-Xclang", "-ast-dump=json", "-Iinclude", "-fsyntax-only", f"{dir}/{filename}"], stdout=outfile)
         args = ["python3", "./ast-parser/ast_parser.py", outfile_path, outfile_path]
         if include_markers:
             args.append("-m")
+        if optimise:
+            args.append("--optimise")
         subprocess.run(args)
 
 def plot_heatmap(data, title, palette="coolwarm"):
@@ -85,7 +87,10 @@ def parse_args():
     )
     p.add_argument("--metrics", default="STRICT,LEV,TED",
                    help="Comma-separated list of metrics to compute "
-                        "(STRICT,LEV,TED). Default: STRICT,LEV,TED"
+                        "(STRICT,LEV,TED). Default: STRICT,LEV,TED."
+    )
+    p.add_argument("--optimise-ast", action="store_true",
+                   help="Uses optimisation for ast trees."
     )
     args = p.parse_args()
 
@@ -108,9 +113,10 @@ if __name__ == '__main__':
     reuse_json = args.reuse_json
     if not reuse_json:
         include_markers = args.markers
+        optimise = args.optimise_ast
         max_workers = min(cpu_count() or 4, len(filenames))
         with ThreadPoolExecutor(max_workers=max_workers) as ex:
-            ex.map(run_parser, filenames, repeat(json_dir), repeat(include_markers), repeat(dir))
+            ex.map(run_parser, filenames, repeat(json_dir), repeat(include_markers), repeat(optimise), repeat(dir))
     TED_table = pd.DataFrame()
     LEV_table = pd.DataFrame()
     STRICT_table = pd.DataFrame()
@@ -148,10 +154,16 @@ if __name__ == '__main__':
 
             if ted is not None and not math.isnan(ted):
                 put_into_table(TED_table, a_file, b_file, ted)
+            else:
+                put_into_table(TED_table, a_file, b_file, -1)
             if lev is not None and not math.isnan(lev):
                 put_into_table(LEV_table, a_file, b_file, lev)
+            else:
+                put_into_table(LEV_table, a_file, b_file, -1)
             if strict is not None and not math.isnan(strict):
                 put_into_table(STRICT_table, a_file, b_file, strict)
+            else:
+                put_into_table(STRICT_table, a_file, b_file, -1)
 
 
     if "TED" in args.metrics:

@@ -26,7 +26,7 @@ class Node:
         self.is_used = None
 
     @staticmethod
-    def create_node(json_data, cut_unused_variables=False) -> 'Node | None':
+    def create_node(json_data, optimise=False) -> 'Node | None':
         node = Node()
         if json_data.get('id') is not None:
             node.id = json_data['id']
@@ -36,15 +36,19 @@ class Node:
             node.operator = json_data.get('opcode', None)
             node.qual_type = json_data.get('type', {}).get('qualType', None)
             node.is_used = json_data.get('isUsed', False)
-            if cut_unused_variables and (node.kind == 'VarDecl' or node.kind == "FunctionDecl") and node.is_used == False:
+            if optimise and (node.kind == 'VarDecl' or (node.kind == "FunctionDecl" and node.name != "main")) and node.is_used == False:
                 return None
             children = []
             not_parsed_children = json_data.get('inner', [])
             for not_parsed_child in not_parsed_children:
-                child = Node.create_node(not_parsed_child, cut_unused_variables)
+                child = Node.create_node(not_parsed_child, optimise)
                 if child is not None:
                     children.append(child)
             node.children = children
+            if optimise and (node.kind == 'DeclStmt' or node.kind == "CompoundStmt") and len(node.children) == 0:
+                return None
+            if optimise and (node.kind == "CompoundStmt" or node.kind == "ImplicitCastExpr") and len(node.children) == 1:
+                return children[0]
             return node
         else:
             return None
@@ -83,11 +87,13 @@ def is_user_made(node):
 
     return begin != {} and end != {} and 'spellingLoc' not in begin and 'spellingLoc' not in end
 
-def extract_main(input_data, cut_unused_variables=False):
+def extract_main(input_data, optimise=False):
     children = []
     for node in input_data["inner"]:
         if is_user_made(node):
-            children.append(Node.create_node(node, cut_unused_variables))
+            child = Node.create_node(node, optimise)
+            if child is not None:
+                children.append(child)
     node = Node()
     node.children = children
     return node
@@ -102,7 +108,7 @@ def extract_marker_label(name):
     match = re.match(r"^__marker_([a-zA-Z0-9_]+)_(start|end)__$", name)
     return match.group(1) if match else None
 
-def extract_on_same_level_markers(input_data, cut_unused_variables=False):
+def extract_on_same_level_markers(input_data, optimise=False):
     children = []
     save_node = False
     marker_labels = []
@@ -118,7 +124,9 @@ def extract_on_same_level_markers(input_data, cut_unused_variables=False):
             node["saved"] = True
 
         if save_node:
-            children.append(Node.create_node(node, cut_unused_variables))
+            child = Node.create_node(node, optimise)
+            if child is not None:
+                children.append(child)
             node["saved"] = True
 
         if is_start_marker(name):
@@ -128,12 +136,12 @@ def extract_on_same_level_markers(input_data, cut_unused_variables=False):
             node["saved"] = True
     return children
 
-def extract_everywhere(input_data, cut_unused_variables=False):
+def extract_everywhere(input_data, optimise=False):
     all_marked = []
 
     def recurse(node):
         if "inner" in node and (node.get("kind") == "TranslationUnitDecl" or is_user_made(node)):
-            result = extract_on_same_level_markers(node, cut_unused_variables)
+            result = extract_on_same_level_markers(node, optimise)
             if result:
                 all_marked.extend(result)
             for child in node["inner"]:
@@ -161,9 +169,9 @@ if __name__ == '__main__':
              "(__marker_<label>_start__/__marker_<label>_end__)"
     )
     parser.add_argument(
-        "--cut-unused",
+        "--optimise",
         action="store_true",
-        help="drop unused declarations (VarDecl/FunctionDecl with isUsed=false)"
+        help="optimise graph by deleting unused variables, functions, unnecessary brackets, casting."
     )
     parser.add_argument(
         "--emit",
@@ -177,16 +185,16 @@ if __name__ == '__main__':
     input_path = args.input
     output_path = args.output
     using_markers = args.markers
-    cut_unused = args.cut_unused
+    optimise = args.optimise
     emit = args.emit
 
     with open(input_path) as f:
         data = json.load(f)
         print(f"[INFO] Parsing main from {input_path}")
     if not using_markers:
-        main_node = extract_main(data, cut_unused_variables=cut_unused)
+        main_node = extract_main(data, optimise=optimise)
     else:
-        main_node = extract_everywhere(data, cut_unused_variables=cut_unused)
+        main_node = extract_everywhere(data, optimise=optimise)
 
     main_node.id = "main"
     graph = to_graph_dict(main_node)
@@ -194,7 +202,8 @@ if __name__ == '__main__':
         print(f"[INFO] Wrote graph to {output_path}")
         json.dump(graph, out, indent=2)
     if emit == "full":
-        with open(output_path.replace(".json", ".labels.json"), "w") as out:
-            print(f"[INFO] Wrote full graph to {output_path.replace(".json", ".labels.json")}")
+        full_output_path = output_path.replace(".json", ".labels.json")
+        with open(full_output_path, "w") as out:
+            print(f"[INFO] Wrote full graph to {full_output_path}")
             json.dump(main_node.to_dict(), out, indent=2)
 
