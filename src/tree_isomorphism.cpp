@@ -7,7 +7,6 @@
 using json = nlohmann::json;
 using namespace std;
 
-//AHU algorithm
 string create_canonical_form(const Node& n, const Graph& graph) {
     if (graph.at(n).empty()) return "()";
     vector<string> canonical;
@@ -21,23 +20,24 @@ string create_canonical_form(const Node& n, const Graph& graph) {
 
 }
 
-int calculate_levenshtein_distance(const string& g1, const string& g2) {
-    const size_t len1 = g1.size(), len2 = g2.size();
-    if (len1 < len2) return calculate_levenshtein_distance(g2, g1);
+int calculate_levenshtein_distance(const string& s, const string& t) {
+    const size_t m = s.size(), n = t.size();
+    if (m < n) return calculate_levenshtein_distance(t, s);
 
-    vector<int> prev(len2 + 1), curr(len2 + 1);
-    iota(prev.begin(), prev.end(), 0);
+    vector<int> prev(n + 1), curr(n + 1);
+    for (auto i = 0; i <= n; i++)
+        prev[i] = i;
 
-    for (int i = 1; i <= len1; i++) {
+    for (int i = 1; i <= m; i++) {
         curr[0] = i;
-        for (int j = 1; j <= len2; j++)
-            if (g1[i - 1] == g2[j - 1])
+        for (int j = 1; j <= n; j++)
+            if (s[i - 1] == t[j - 1])
                 curr[j] = prev[j - 1];
             else
                 curr[j] = 1 + min({prev[j], curr[j - 1], prev[j - 1]});
         swap(prev, curr);
     }
-    return prev[len2];
+    return prev[n];
 }
 
 TreeNode* build_tree(const Node& root, const Graph& graph) {
