@@ -197,10 +197,11 @@ if __name__ == '__main__':
         main_node = extract_everywhere(data, optimise=optimise)
 
     main_node.id = "main"
-    graph = to_graph_dict(main_node)
-    with open(output_path, "w") as out:
-        print(f"[INFO] Wrote graph to {output_path}")
-        json.dump(graph, out, indent=2)
+    if emit == "lite":
+        graph = to_graph_dict(main_node)
+        with open(output_path, "w") as out:
+            print(f"[INFO] Wrote graph to {output_path}")
+            json.dump(graph, out, indent=2)
     if emit == "full":
         full_output_path = output_path.replace(".json", ".labels.json")
         with open(full_output_path, "w") as out:
