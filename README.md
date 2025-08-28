@@ -46,5 +46,3 @@ Arguments
 6. `--metrics` — comma-separated list of metrics to compute (STRICT,LEV,TED). Default: STRICT,LEV,TED.
 7. `--optimise-ast` — uses optimisation for ast trees.
 ---
-## Student markers
-[todo]
