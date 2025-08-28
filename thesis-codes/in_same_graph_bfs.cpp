@@ -2,7 +2,6 @@
 #include<vector>
 #include<queue>
 
-#include "../codes/student_markers.h"
 using namespace std;
 vector<int> adj[100];
 bool vis[100];

@@ -1,7 +1,6 @@
 #include<iostream>
 #include<vector>
 
-#include "student_markers.h"
 using namespace std;
 vector<int> adj[100];
 bool vis[100];
