@@ -9,10 +9,10 @@ CXXFLAGS = -std=c++17 -I$(INCLUDE_DIR)
 CLANG = clang++
 
 
-build: $(NLOHMANN_JSON)
+build: deps
 	$(CXX) $(CXXFLAGS) $(CPP_SRC) -o $(CPP_EXEC)
 
-$(NLOHMANN_JSON):
+deps:
 	mkdir -p $(INCLUDE_DIR)/nlohmann
 	curl -L https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp -o $(NLOHMANN_JSON)
 
@@ -23,4 +23,4 @@ create-tree $(FILE):
 clean:
 	rm -fr $(CPP_EXEC) $(INCLUDE_DIR)/nlohmann
 
-.PHONY: build clean create-tree
+.PHONY: build clean create-tree deps
