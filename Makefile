@@ -21,6 +21,6 @@ create-tree $(FILE):
 
 
 clean:
-	rm -f $(CPP_EXEC)
+	rm -fr $(CPP_EXEC) $(INCLUDE_DIR)/nlohmann
 
 .PHONY: build clean create-tree
